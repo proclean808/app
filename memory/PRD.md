@@ -28,6 +28,10 @@ Storage (Supabase preferred, MongoDB fallback)
 - Supabase schema with pgvector, pg_trgm, pgcrypto + RLS policies + HNSW vector index + `match_knowledge_nodes()` RPC.
 
 ## What's Been Implemented (2026-01-25)
+
+### ✅ Supabase Production Storage — LIVE
+Connected via the user-provided service_role JWT for project `dcuaeqjfibgbmxetkwzf`. The schema migration `001_venture_ferret_schema.sql` was applied via the `aws-1-us-west-1` Supavisor pooler. All 4 tables (`knowledge_nodes`, `knowledge_edges`, `workflow_events`, `agent_actions`) plus the HNSW vector index and `match_knowledge_nodes` RPC are operational. The backend's `get_storage()` selector picks Supabase automatically. End-to-end verified: pipelines write nodes, edges, events, and actions; pgvector RPC returns semantically ranked results with similarity scores (e.g., 0.601 for "pricing infrastructure" → "Pricing Tier Absence" node).
+
 ### Backend
 - `services/storage.py` — Pluggable storage layer with `SupabaseBackend` and `MongoBackend`. Auto-selects based on env config; falls back to Mongo when Supabase service_role key is missing/invalid.
 - `services/firecrawl_service.py` — Async Firecrawl v1 /scrape wrapper.
@@ -52,9 +56,7 @@ Storage (Supabase preferred, MongoDB fallback)
 - Hybrid search combines vector + keyword.
 
 ## Known Issues / Backlog
-- **Supabase service_role key invalid**: User provided keys did not authenticate against the project URL. System auto-falls back to MongoDB (fully functional). Once a valid key is supplied, the system will seamlessly switch.
-  - Action: User to provide valid Supabase service_role key from Dashboard → Settings → API → service_role.
-- **Schema migration**: `migrations/001_venture_ferret_schema.sql` needs to be run in the Supabase SQL editor before switching backends.
+- **Supabase**: ✅ Resolved. Live & operational via JWT service_role key. Schema applied through Supavisor pooler region `aws-1-us-west-1`.
 
 ## P0 / P1 / P2 Backlog
 - **P0** — Valid Supabase service_role key + run SQL migration; then storage seamlessly upgrades.
