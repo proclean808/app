@@ -1,0 +1,84 @@
+{
+  "theme": "dark",
+  "archetype": "4_swiss_high_contrast",
+  "domain": "cognitive_infrastructure_observability",
+  "design_vision": "Dense data terminal, operational photographic memory, cognitive infrastructure console for venture analysts.",
+  "typography": {
+    "heading_font": "IBM Plex Sans",
+    "body_font": "IBM Plex Sans",
+    "accent_font": "JetBrains Mono",
+    "scale": {
+      "h1": "text-3xl sm:text-4xl tracking-tight font-semibold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-medium",
+      "h3": "text-lg sm:text-xl tracking-tight",
+      "h4": "text-base sm:text-lg font-mono",
+      "body": "text-sm text-text-secondary",
+      "labels": "text-xs uppercase tracking-[0.2em] font-mono text-text-secondary"
+    }
+  },
+  "colors": {
+    "background": "#050505",
+    "surface": "#0A0A0A",
+    "surface_hover": "#141414",
+    "border": "#222222",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#8A8A8A",
+    "primary_accent": "#FF4F00",
+    "primary_accent_hover": "#FF6B2B",
+    "status": {
+      "success": "#00FF41",
+      "warning": "#FFBF00",
+      "error": "#FF3B30",
+      "info": "#007AFF"
+    }
+  },
+  "spacing_and_layout": {
+    "grid_mode": "control_room",
+    "gap": "gap-px or gap-4 depending on density needs",
+    "padding_philosophy": "Dense and tight for data tables (p-2 to p-4), generous padding for main panels (p-6).",
+    "radius": "rounded-none (sharp edges only)",
+    "border_style": "Grid Borders (The 'Technical' Look). Expose the skeleton, 1px solid borders border-[#222222]."
+  },
+  "components": {
+    "cards": "Flat background (#0A0A0A), 1px solid border (#222222), no shadow. Hover: border color brightens.",
+    "buttons": "Sharp edges, flat colors. Primary uses #FF4F00 background with white text. Secondary uses transparent background with 1px border and hover effect.",
+    "navigation": "Side or top navigation with a solid #050505 background and hard bottom/right border. Active states marked with a thin 2px left-border of #FF4F00.",
+    "tables": "Dense, monospace accents for numbers, sticky headers, subtle 1px border bottom for rows.",
+    "charts": "Recharts with monospace labels. Lines/bars use primary accent (#FF4F00) and status colors."
+  },
+  "media": {
+    "images": [
+      {
+        "category": "logo",
+        "url": "https://static.prod-images.emergentagent.com/jobs/847c5530-85eb-41b9-a32b-84c1a32342de/images/167765564b3ca7bc8b2df94378312c196945d4b4064766da501ecc917e380a19.png",
+        "description": "Minimalist abstract geometric line-art logo of a ferret"
+      },
+      {
+        "category": "background_texture",
+        "url": "https://static.prod-images.emergentagent.com/jobs/847c5530-85eb-41b9-a32b-84c1a32342de/images/7ebd44d404a83c34c1d9ef672d4459181f8fa5f27fff37c619ef010a3fe37c69.png",
+        "description": "Dark observability dashboard background texture, knowledge graph"
+      },
+      {
+        "category": "abstract_data_network",
+        "url": "https://images.pexels.com/photos/10325707/pexels-photo-10325707.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Vibrant orange lines and dots form an abstract network on a dark background"
+      }
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Technical, minimal. 16px or 20px size."
+  },
+  "testing": {
+    "guideline": "All interactive and key informational elements MUST include a data-testid attribute. Use kebab-case, role-based format."
+  },
+  "instructions_to_main_agent": [
+    "1. Setup Tailwind config with the specified colors and fonts.",
+    "2. Ensure pages are strictly .js and not .tsx.",
+    "3. Use JetBrains Mono for all data points, code blocks, metrics, and labels.",
+    "4. Use sharp borders (rounded-none) and border-collapse techniques to create the 'Technical' grid look.",
+    "5. Avoid any soft shadows or glowing gradients, rely strictly on contrast and 1px borders for hierarchy.",
+    "6. Make heavy use of the primary_accent (#FF4F00) for active signals and data nodes.",
+    "7. All interactive and key informational elements MUST include data-testid."
+  ]
+}
