@@ -1,0 +1,35 @@
+{
+  "summary": "Comprehensive end-to-end testing of Venture Ferret Core Engine. All 15 backend pytest cases passed (health, categories, stats, graph nodes/filter/detail/404, semantic/keyword/hybrid retrieval, governance, workflows, runs, live pipeline trigger+poll). Frontend console tested across all 5 views (Operations, Topology, Retrieval, Timeline, Governance). Live pipeline triggered from UI completed end-to-end in ~10s producing 2 nodes from example.com. Retrieval UI returns 8 semantic + 8 hybrid results with similarity & combined scores. No errors detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_venture_ferret.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VentureFerretConsole.jsx is 900 lines — consider splitting each view (OperationsView, TopologyView, RetrievalView, TimelineView, GovernanceView) into separate files for maintainability.",
+    "list_runs in routes/venture_ferret.py O(N) groups all events client-side (limit=500). For scale, add an aggregation pipeline or dedicated `research_runs` collection indexed by run_id.",
+    "MongoBackend.search_vector loads up to 500 candidates and computes cosine in Python — fine for fallback, but flag as the obvious bottleneck once Supabase pgvector is restored.",
+    "Endpoints /api/research/trigger and search endpoints lack request size/rate limiting — Firecrawl + Gemini calls cost money and an unauthenticated POST could be abused (system is documented as internal-only, so acceptable for MVP).",
+    "Supabase service_role key is empty in .env causing intentional Mongo fallback (per design). Once user provides a valid key, get_storage() will switch automatically — already validated by code path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_venture_ferret.py (new)",
+    "/app/backend/tests/__init__.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% (5/5 views)"},
+  "test_credentials": "Not applicable — system is internal/no-auth",
+  "seed_data_creation": "Pipeline triggers during testing added ~2 nodes for https://example.com (TEST_ prefixed queries). Final state: 8 knowledge nodes, 8 edges, 33 events, 8 actions.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite at /app/backend/tests/test_venture_ferret.py runs in ~14s and covers all critical endpoints. Pipeline trigger test uses https://example.com to stay <30s. Retrieval UI input testid is 'retrieve-query' (NOT 'input-query' — that one is only on Operations view). Other key testids: nav-{ops|graph|retrieve|timeline|governance}, btn-trigger, btn-search, mode-{semantic|keyword|hybrid}, cat-filter-{all|infrastructure|...}, node-card-{id}, result-row-{idx}, run-row-{id}, step-row-{name}-{idx}, timeline-row-{i}, action-row-{i}. Storage backend currently MongoDB (Supabase service_role key empty — by design).",
+  "rca of the issue": "N/A — no issues found. One self-correction during testing: initial Playwright run used wrong selector 'input-query' on the retrieval view (correct is 'retrieve-query'), which caused empty fills and 0 results. Re-ran with correct selector and confirmed 8/8 results for semantic + hybrid."
+}
