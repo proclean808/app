@@ -22,19 +22,30 @@ class GeminiService:
         if not self.api_key:
             raise RuntimeError("GOOGLE_API_KEY missing")
         self.client = genai.Client(api_key=self.api_key)
+        self.MAX_RETRIES = 3
+        self.BACKOFF_BASE = 0.5
 
     async def embed(self, text: str) -> list[float]:
         if not text:
             return [0.0] * self.EMBED_DIM
-        # Gemini SDK is sync; offload to thread
-        def _run() -> list[float]:
-            res = self.client.models.embed_content(
-                model=self.EMBED_MODEL,
-                contents=text[:8000],  # safety truncate
-                config=gtypes.EmbedContentConfig(output_dimensionality=self.EMBED_DIM),
-            )
-            return list(res.embeddings[0].values)
-        return await asyncio.to_thread(_run)
+        # Gemini SDK is sync; offload to thread with retries
+        last_err = None
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            def _run() -> list[float]:
+                res = self.client.models.embed_content(
+                    model=self.EMBED_MODEL,
+                    contents=text[:8000],  # safety truncate
+                    config=gtypes.EmbedContentConfig(output_dimensionality=self.EMBED_DIM),
+                )
+                return list(res.embeddings[0].values)
+
+            try:
+                return await asyncio.to_thread(_run)
+            except Exception as e:
+                last_err = e
+                if attempt == self.MAX_RETRIES:
+                    raise
+                await asyncio.sleep(self.BACKOFF_BASE * (2 ** (attempt - 1)))
 
     async def extract_signals(self, markdown: str, query: str) -> list[dict]:
         """Extract structured research signals from scraped markdown."""
@@ -66,18 +77,29 @@ SOURCE CONTENT:
 {markdown[:6000]}
 """
 
-        def _run() -> str:
-            res = self.client.models.generate_content(
-                model=self.CHAT_MODEL,
-                contents=prompt,
-                config=gtypes.GenerateContentConfig(
-                    temperature=0.2,
-                    response_mime_type="application/json",
-                ),
-            )
-            return res.text or "[]"
+        # Retry wrapper for the sync Gemini SDK call
+        last_err = None
+        raw = None
+        for attempt in range(1, getattr(self, "MAX_RETRIES", 3) + 1):
+            def _run() -> str:
+                res = self.client.models.generate_content(
+                    model=self.CHAT_MODEL,
+                    contents=prompt,
+                    config=gtypes.GenerateContentConfig(
+                        temperature=0.2,
+                        response_mime_type="application/json",
+                    ),
+                )
+                return res.text or "[]"
 
-        raw = await asyncio.to_thread(_run)
+            try:
+                raw = await asyncio.to_thread(_run)
+                break
+            except Exception as e:
+                last_err = e
+                if attempt == getattr(self, "MAX_RETRIES", 3):
+                    raise
+                await asyncio.sleep(self.BACKOFF_BASE * (2 ** (attempt - 1)))
         import json
         try:
             data = json.loads(raw)

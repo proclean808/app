@@ -36,6 +36,33 @@ class StorageBackend:
     async def search_vector(self, embedding: list[float], limit: int = 10) -> list[dict]:
         raise NotImplementedError
 
+    async def insert_conversation_entry(self, session_id: str, role: str, content: str, metadata: Optional[dict] = None) -> dict:
+        raise NotImplementedError
+
+    async def list_conversation_entries(self, session_id: str, limit: int = 50) -> list[dict]:
+        raise NotImplementedError
+
+    async def search_conversation_entries(self, session_id: str, query: str, limit: int = 10) -> list[dict]:
+        raise NotImplementedError
+
+    async def insert_orchestration_node(self, node: dict) -> dict:
+        raise NotImplementedError
+
+    async def insert_orchestration_edge(self, edge: dict) -> dict:
+        raise NotImplementedError
+
+    async def list_orchestration_nodes(self, limit: int = 100) -> list[dict]:
+        raise NotImplementedError
+
+    async def list_orchestration_edges(self, limit: int = 100) -> list[dict]:
+        raise NotImplementedError
+
+    async def get_orchestration_node(self, node_id: str) -> Optional[dict]:
+        raise NotImplementedError
+
+    async def get_outgoing_orchestration_edges(self, node_id: str, limit: int = 50) -> list[dict]:
+        raise NotImplementedError
+
     async def log_workflow_event(self, event: dict) -> dict:
         raise NotImplementedError
 
@@ -63,6 +90,9 @@ class MongoBackend(StorageBackend):
         self.edges = self.db.knowledge_edges
         self.events = self.db.workflow_events
         self.actions = self.db.agent_actions
+        self.conversation_entries = self.db.conversation_entries
+        self.orchestration_nodes = self.db.orchestration_nodes
+        self.orchestration_edges = self.db.orchestration_edges
 
     async def insert_node(self, node: dict) -> dict:
         doc = {
@@ -183,6 +213,75 @@ class MongoBackend(StorageBackend):
         cursor = self.actions.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
         return await cursor.to_list(limit)
 
+    async def insert_conversation_entry(self, session_id: str, role: str, content: str, metadata: Optional[dict] = None) -> dict:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "role": role,
+            "content": content,
+            "metadata": metadata or {},
+            "created_at": _now_iso(),
+        }
+        await self.conversation_entries.insert_one(dict(doc))
+        doc.pop("_id", None)
+        return doc
+
+    async def list_conversation_entries(self, session_id: str, limit: int = 50) -> list[dict]:
+        cursor = self.conversation_entries.find({"session_id": session_id}, {"_id": 0}).sort("created_at", -1).limit(limit)
+        return await cursor.to_list(limit)
+
+    async def search_conversation_entries(self, session_id: str, query: str, limit: int = 10) -> list[dict]:
+        q = {
+            "session_id": session_id,
+            "$or": [
+                {"content": {"$regex": query, "$options": "i"}},
+                {"metadata": {"$regex": query, "$options": "i"}},
+            ]
+        }
+        cursor = self.conversation_entries.find(q, {"_id": 0}).limit(limit)
+        return await cursor.to_list(limit)
+
+    async def insert_orchestration_node(self, node: dict) -> dict:
+        doc = {
+            "id": node.get("id") or str(uuid.uuid4()),
+            "node_type": node["node_type"],
+            "name": node["name"],
+            "metadata": node.get("metadata", {}),
+            "created_at": _now_iso(),
+        }
+        await self.orchestration_nodes.insert_one(dict(doc))
+        doc.pop("_id", None)
+        return doc
+
+    async def insert_orchestration_edge(self, edge: dict) -> dict:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "source_node_id": edge["source_node_id"],
+            "target_node_id": edge["target_node_id"],
+            "relationship_type": edge["relationship_type"],
+            "condition": edge.get("condition", {}),
+            "weight": edge.get("weight", 1.0),
+            "created_at": _now_iso(),
+        }
+        await self.orchestration_edges.insert_one(dict(doc))
+        doc.pop("_id", None)
+        return doc
+
+    async def list_orchestration_nodes(self, limit: int = 100) -> list[dict]:
+        cursor = self.orchestration_nodes.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+        return await cursor.to_list(limit)
+
+    async def list_orchestration_edges(self, limit: int = 100) -> list[dict]:
+        cursor = self.orchestration_edges.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+        return await cursor.to_list(limit)
+
+    async def get_orchestration_node(self, node_id: str) -> Optional[dict]:
+        return await self.orchestration_nodes.find_one({"id": node_id}, {"_id": 0})
+
+    async def get_outgoing_orchestration_edges(self, node_id: str, limit: int = 50) -> list[dict]:
+        cursor = self.orchestration_edges.find({"source_node_id": node_id}, {"_id": 0}).sort("weight", -1).limit(limit)
+        return await cursor.to_list(limit)
+
     async def stats(self) -> dict:
         return {
             "backend": "mongodb",
@@ -190,6 +289,9 @@ class MongoBackend(StorageBackend):
             "edges": await self.edges.count_documents({}),
             "events": await self.events.count_documents({}),
             "actions": await self.actions.count_documents({}),
+            "conversation_entries": await self.conversation_entries.count_documents({}),
+            "orchestration_nodes": await self.orchestration_nodes.count_documents({}),
+            "orchestration_edges": await self.orchestration_edges.count_documents({}),
         }
 
 
@@ -292,18 +394,82 @@ class SupabaseBackend(StorageBackend):
         res = self.client.table("agent_actions").select("*").order("created_at", desc=True).limit(limit).execute()
         return res.data or []
 
+    async def insert_conversation_entry(self, session_id: str, role: str, content: str, metadata: Optional[dict] = None) -> dict:
+        row = {
+            "session_id": session_id,
+            "role": role,
+            "content": content,
+            "metadata": metadata or {},
+        }
+        res = self.client.table("conversation_entries").insert(row).execute()
+        return res.data[0] if res.data else {}
+
+    async def list_conversation_entries(self, session_id: str, limit: int = 50) -> list[dict]:
+        res = self.client.table("conversation_entries").select("*")
+        res = res.eq("session_id", session_id).order("created_at", desc=True).limit(limit).execute()
+        return res.data or []
+
+    async def search_conversation_entries(self, session_id: str, query: str, limit: int = 10) -> list[dict]:
+        res = self.client.table("conversation_entries").select("*")
+        res = res.eq("session_id", session_id).ilike("content", f"%{query}%")
+        res = res.order("created_at", desc=True).limit(limit).execute()
+        return res.data or []
+
+    async def insert_orchestration_node(self, node: dict) -> dict:
+        row = {
+            "node_type": node["node_type"],
+            "name": node["name"],
+            "metadata": node.get("metadata", {}),
+        }
+        res = self.client.table("orchestration_nodes").insert(row).execute()
+        return res.data[0] if res.data else {}
+
+    async def insert_orchestration_edge(self, edge: dict) -> dict:
+        row = {
+            "source_node_id": edge["source_node_id"],
+            "target_node_id": edge["target_node_id"],
+            "relationship_type": edge["relationship_type"],
+            "condition": edge.get("condition", {}),
+            "weight": edge.get("weight", 1.0),
+        }
+        res = self.client.table("orchestration_edges").insert(row).execute()
+        return res.data[0] if res.data else {}
+
+    async def list_orchestration_nodes(self, limit: int = 100) -> list[dict]:
+        res = self.client.table("orchestration_nodes").select("*").order("created_at", desc=True).limit(limit).execute()
+        return res.data or []
+
+    async def list_orchestration_edges(self, limit: int = 100) -> list[dict]:
+        res = self.client.table("orchestration_edges").select("*").order("created_at", desc=True).limit(limit).execute()
+        return res.data or []
+
+    async def get_orchestration_node(self, node_id: str) -> Optional[dict]:
+        res = self.client.table("orchestration_nodes").select("*").eq("id", node_id).execute()
+        return res.data[0] if res.data else None
+
+    async def get_outgoing_orchestration_edges(self, node_id: str, limit: int = 50) -> list[dict]:
+        res = self.client.table("orchestration_edges").select("*").eq("source_node_id", node_id)
+        res = res.order("weight", desc=True).limit(limit).execute()
+        return res.data or []
+
     async def stats(self) -> dict:
         try:
             nodes = self.client.table("knowledge_nodes").select("id", count="exact").execute()
             edges = self.client.table("knowledge_edges").select("id", count="exact").execute()
             events = self.client.table("workflow_events").select("id", count="exact").execute()
             actions = self.client.table("agent_actions").select("id", count="exact").execute()
+            convo = self.client.table("conversation_entries").select("id", count="exact").execute()
+            orch_nodes = self.client.table("orchestration_nodes").select("id", count="exact").execute()
+            orch_edges = self.client.table("orchestration_edges").select("id", count="exact").execute()
             return {
                 "backend": "supabase",
                 "nodes": nodes.count or 0,
                 "edges": edges.count or 0,
                 "events": events.count or 0,
                 "actions": actions.count or 0,
+                "conversation_entries": convo.count or 0,
+                "orchestration_nodes": orch_nodes.count or 0,
+                "orchestration_edges": orch_edges.count or 0,
             }
         except Exception as e:
             return {"backend": "supabase", "error": str(e)[:200]}

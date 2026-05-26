@@ -126,8 +126,8 @@ function OperationsView({ refreshSignal, bumpRefresh }) {
   const [activeRun, setActiveRun] = useState(null);
   const [activeRunDetail, setActiveRunDetail] = useState(null);
 
-  const [domain, setDomain] = useState("https://stripe.com");
-  const [query, setQuery] = useState("Identify pricing model, target customers and infrastructure choices");
+  const [domain, setDomain] = useState("https://example.com");
+  const [query, setQuery] = useState("Identify strategic signals, pricing, and infrastructure for the target site.");
   const [triggering, setTriggering] = useState(false);
   const [lastError, setLastError] = useState(null);
 

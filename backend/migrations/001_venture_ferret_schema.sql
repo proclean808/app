@@ -9,6 +9,24 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ============================================================================
+-- MIGRATION AUDIT LEDGER (Multi-Tenant Provisioning Engine)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
+    migration_id VARCHAR(255) PRIMARY KEY,
+    app_id VARCHAR(255) NOT NULL,
+    tenant_id VARCHAR(255) NOT NULL,
+    checksum VARCHAR(64) NOT NULL,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    execution_time_ms INT NOT NULL,
+    worker_node VARCHAR(255) NOT NULL,
+    success BOOLEAN NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_schema_migrations_tenant ON public.schema_migrations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_schema_migrations_app ON public.schema_migrations(app_id);
+CREATE INDEX IF NOT EXISTS idx_schema_migrations_applied ON public.schema_migrations(applied_at DESC);
+
+-- ============================================================================
 -- ENUMS / TYPES
 -- ============================================================================
 DO $$ BEGIN
@@ -95,6 +113,52 @@ CREATE TABLE IF NOT EXISTS public.agent_actions (
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ============================================================================
+-- CONVERSATION MEMORY: conversation_entries (session-level context)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.conversation_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_session ON public.conversation_entries(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_created ON public.conversation_entries(created_at DESC);
+
+-- ============================================================================
+-- ORCHESTRATION SPINE: orchestration_nodes (deterministic routing topology)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.orchestration_nodes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    node_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orchestration_nodes_type ON public.orchestration_nodes(node_type);
+CREATE INDEX IF NOT EXISTS idx_orchestration_nodes_created ON public.orchestration_nodes(created_at DESC);
+
+-- ============================================================================
+-- ORCHESTRATION SPINE: orchestration_edges (deterministic execution paths)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.orchestration_edges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_node_id UUID REFERENCES public.orchestration_nodes(id) ON DELETE CASCADE,
+    target_node_id UUID REFERENCES public.orchestration_nodes(id) ON DELETE CASCADE,
+    relationship_type TEXT NOT NULL,
+    condition JSONB DEFAULT '{}'::jsonb,
+    weight NUMERIC(3,2) DEFAULT 1.00,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orchestration_edges_source ON public.orchestration_edges(source_node_id);
+CREATE INDEX IF NOT EXISTS idx_orchestration_edges_target ON public.orchestration_edges(target_node_id);
+CREATE INDEX IF NOT EXISTS idx_orchestration_edges_rel ON public.orchestration_edges(relationship_type);
 
 -- ============================================================================
 -- INDICES (Performance Optimization)
